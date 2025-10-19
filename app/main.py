@@ -12,7 +12,12 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Response, status, Body
-from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse
+from fastapi.responses import (
+    JSONResponse,
+    StreamingResponse,
+    HTMLResponse,
+    RedirectResponse,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -341,6 +346,12 @@ def health():
         "jobs_active": len([j for j in jobs.values() if j.status == "running"]),
         "devices": list_device_udids(),
     }
+
+
+@app.get("/")
+def root_redirect():
+    # Redirect root to /ui dashboard
+    return RedirectResponse(url="/ui", status_code=302)
 
 
 @app.get("/devices")

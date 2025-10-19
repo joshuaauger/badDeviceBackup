@@ -1,6 +1,6 @@
 # iOS Network Backup Docker App
 
-This project packages `libimobiledevice` tooling and `netmuxd` together with a FastAPI web service to pair iOS devices and trigger incremental backups over the network from a Linux host (or any Docker-capable system).
+This project packages `libimobiledevice` tooling and `netmuxd` together with a FastAPI + HTML dashboard to pair iOS devices and trigger incremental (incremental-capable) backups over the network. USB pairing workflow is fully supported on Linux hosts. On macOS (Docker Desktop) direct USB passthrough is not available, so you must pair on the host and then run network backups inside the container.
 
 ## Key Features
 
@@ -10,6 +10,7 @@ This project packages `libimobiledevice` tooling and `netmuxd` together with a F
 - Persist lockdown pairing certificates and backup data across container restarts.
 - Simple REST API + Server-Sent Events (SSE) log streaming for backup progress.
 - Multi-architecture support (amd64, arm64) with automatic fallback to source build for `netmuxd`.
+- Built-in HTML dashboard at `/ui` (root `/` redirects there) for health, devices, pairing, backup jobs, and log streaming.
 
 ## Repository Layout
 
@@ -19,7 +20,7 @@ This project packages `libimobiledevice` tooling and `netmuxd` together with a F
 
 ## Concepts
 
-- Pairing must happen with a physical USB connection (trust dialog appears on device).
+- Pairing must happen with a physical USB connection (trust dialog appears on device). (macOS containers cannot access USB; pair on the macOS host then copy lockdown plist into the container.)
 - After pairing, backups can occur while the device is connected only via Wi-Fi (through `netmuxd` network muxing).
 - Each device’s backup lives under `/data/backups/<UDID>`.
 - Pairing information (lockdown plists) lives under `/data/lockdown` (symlinked to `/var/lib/lockdown` inside container).
@@ -122,6 +123,7 @@ Base URL: `http://<host>:8080`
 - GET `/backups/{udid}` – Summary (size, file count).
 - GET `/backups/{udid}/files` – List all files (metadata only).
 - DELETE `/backups/{udid}` – Remove a device’s backup folder.
+- GET `/ui` – HTML dashboard (root `/` redirects here).
 
 ### Pairing Flow
 
@@ -196,7 +198,7 @@ If release asset missing for your architecture, source build fallback is automat
 
 ## License
 
-This project aggregates third-party binaries (`netmuxd`, `libimobiledevice`). Review upstream licenses. Project code here may be distributed under your chosen license (add one to the root).
+This project aggregates third-party binaries (`netmuxd`, `libimobiledevice`). Review their upstream licenses separately. All original code in this repository is released under **The Unlicense** (public domain). See `LICENSE` for details.
 
 ## Disclaimer
 

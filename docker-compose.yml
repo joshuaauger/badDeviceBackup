@@ -1,0 +1,71 @@
+version: "3.9"
+
+# Example docker-compose configuration for the iOS Network Backup service.
+# Adjust volumes, environment variables, and device mappings as needed for your host.
+
+services:
+  ios-backup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Pin the netmuxd version (tag must exist in upstream repo jkcoxson/netmuxd)
+        NETMUXD_VERSION: v0.3.0
+        # BASE_IMAGE can be changed (e.g. python:3.12-slim, debian:stable-slim, ubuntu:22.04)
+        BASE_IMAGE: python:3.12-slim
+        LIBIMOBILEDEVICE_PKG: libimobiledevice-1.0-6
+    image: ios-backup:latest
+    container_name: ios-backup
+    restart: unless-stopped
+
+    # Expose the FastAPI web server
+    ports:
+      - "8080:8080"
+
+    # Persist backup data, lockdown pairing certificates, and config (OpenSSL weak file)
+    volumes:
+      - backups:/data/backups
+      - lockdown:/data/lockdown
+      - config:/data/config
+      - logs:/data/logs
+
+    # Pass through USB bus for pairing (remove if using host pairing only)
+    devices:
+      - "/dev/bus/usb:/dev/bus/usb"
+
+    # Environment configuration (override as necessary)
+    environment:
+      APP_MODE: "full" # "full" starts netmuxd; "backup-only" skips starting it
+      PORT: "8080"
+      BACKUP_DIR: "/data/backups"
+      LOCKDOWN_DIR: "/var/lib/lockdown"
+      OPENSSL_WEAK_CONFIG: "/data/config/openssl-weak.conf"
+      USBMUXD_SOCKET_ADDRESS: "127.0.0.1:27015"
+      MAX_CONCURRENT_BACKUPS: "2"
+
+    # Healthcheck relies on idevice_id; if no device present it still returns success
+    healthcheck:
+      test: ["CMD", "idevice_id", "-l"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+    # Security context considerations:
+    # For some hosts you might need privileged or group additions; uncomment if pairing fails due to permissions.
+    # privileged: true
+    # group_add:
+    #   - plugdev
+
+    # Optional: If you already have usbmuxd running on host and only want network backups,
+    # you can mount its socket instead of passing USB devices:
+    # volumes:
+    #   - /var/run/usbmuxd:/var/run/usbmuxd
+    # environment:
+    #   APP_MODE: "backup-only"
+
+volumes:
+  backups:
+  lockdown:
+  config:
+  logs:

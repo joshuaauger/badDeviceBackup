@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>iOS Network Backup Dashboard</title>
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <style>
+            :root {
+                --bg: #121417;
+                --panel: #1e2329;
+                --panel-alt: #181d22;
+                --accent: #4ea6ff;
+                --accent-alt: #ffb347;
+                --ok: #56d364;
+                --warn: #f5d94e;
+                --danger: #ff5c5c;
+                --text: #e4e7eb;
+                --muted: #9aa2ac;
+                --radius: 6px;
+                --mono:
+                    ui-monospace, SFMono-Regular, Menlo, Consolas,
+                    "Liberation Mono", monospace;
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    Segoe UI,
+                    Roboto,
+                    Oxygen,
+                    Ubuntu,
+                    Cantarell,
+                    sans-serif;
+                background: var(--bg);
+                color: var(--text);
+                line-height: 1.45;
+            }
+            header {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                flex-wrap: wrap;
+                padding: 0.9rem 1.4rem;
+                background: var(--panel-alt);
+                border-bottom: 1px solid #2b323b;
+            }
+            header h1 {
+                font-size: 1.15rem;
+                font-weight: 600;
+                margin: 0;
+                letter-spacing: 0.5px;
+            }
+            .pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.3rem;
+                padding: 0.35rem 0.7rem;
+                border-radius: 999px;
+                font-size: 0.65rem;
+                letter-spacing: 0.5px;
+                font-weight: 600;
+                text-transform: uppercase;
+                background: #2b323b;
+                color: var(--muted);
+            }
+            .pill.ok {
+                background: var(--ok);
+                color: #093019;
+            }
+            .pill.warn {
+                background: var(--warn);
+                color: #2f2b00;
+            }
+            .pill.danger {
+                background: var(--danger);
+                color: #3e0808;
+            }
+            main {
+                max-width: 1400px;
+                margin: 0 auto;
+                padding: 1.2rem 1.3rem 3rem;
+                display: grid;
+                gap: 1.1rem;
+                grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            }
+            section.panel {
+                background: var(--panel);
+                border: 1px solid #2b323b;
+                border-radius: var(--radius);
+                padding: 0.9rem 0.95rem 1.1rem;
+                display: flex;
+                flex-direction: column;
+                gap: 0.7rem;
+                min-height: 190px;
+                position: relative;
+            }
+            section.panel h2 {
+                margin: 0;
+                font-size: 0.95rem;
+                font-weight: 600;
+                letter-spacing: 0.4px;
+                color: var(--accent);
+                display: flex;
+                align-items: center;
+                gap: 0.4rem;
+            }
+            button,
+            select {
+                font-size: 0.72rem;
+                font-weight: 600;
+                border: none;
+                background: var(--accent);
+                color: #04121d;
+                padding: 0.55rem 0.85rem;
+                border-radius: var(--radius);
+                cursor: pointer;
+                letter-spacing: 0.6px;
+                transition:
+                    background 0.15s ease,
+                    filter 0.15s ease;
+            }
+            button.secondary {
+                background: #2d353f;
+                color: var(--text);
+            }
+            button.danger {
+                background: var(--danger);
+                color: #3e0808;
+            }
+            button:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+            button:hover:not(:disabled) {
+                filter: brightness(1.1);
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.65rem;
+            }
+            th,
+            td {
+                padding: 0.4rem 0.5rem;
+                text-align: left;
+                border-bottom: 1px solid #2b323b;
+                vertical-align: top;
+                line-height: 1.2;
+            }
+            th {
+                font-weight: 600;
+                font-size: 0.58rem;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                color: var(--muted);
+            }
+            tbody tr:hover {
+                background: #262d33;
+            }
+            .scroll-box {
+                overflow: auto;
+                max-height: 230px;
+                border: 1px solid #2b323b;
+                border-radius: var(--radius);
+            }
+            .status-badge {
+                display: inline-block;
+                padding: 0.25rem 0.45rem;
+                border-radius: 4px;
+                font-size: 0.55rem;
+                font-weight: 600;
+                letter-spacing: 0.4px;
+                text-transform: uppercase;
+                background: #2b323b;
+                color: var(--muted);
+            }
+            .status-running {
+                background: var(--accent-alt);
+                color: #352001;
+            }
+            .status-success {
+                background: var(--ok);
+                color: #093019;
+            }
+            .status-error {
+                background: var(--danger);
+                color: #3e0808;
+            }
+            .progress-wrap {
+                background: #262d33;
+                height: 8px;
+                width: 100%;
+                border-radius: 4px;
+                overflow: hidden;
+                margin-top: 0.2rem;
+            }
+            .progress-bar {
+                height: 100%;
+                width: 0%;
+                background: linear-gradient(
+                    90deg,
+                    var(--accent) 0%,
+                    #6bcaff 100%
+                );
+                transition: width 0.35s ease;
+            }
+            .muted {
+                color: var(--muted);
+            }
+            .small {
+                font-size: 0.6rem;
+            }
+            .nowrap {
+                white-space: nowrap;
+            }
+            .log-view {
+                background: #101215;
+                border: 1px solid #2b323b;
+                border-radius: var(--radius);
+                height: 240px;
+                overflow: auto;
+                padding: 0.55rem 0.6rem;
+                font-family: var(--mono);
+                font-size: 0.6rem;
+                line-height: 1.25;
+                white-space: pre-wrap;
+            }
+            .row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.55rem;
+                align-items: center;
+            }
+            .grow {
+                flex: 1;
+            }
+            footer {
+                max-width: 1400px;
+                margin: 0 auto 1.5rem;
+                padding: 0 1.3rem;
+                font-size: 0.6rem;
+                color: var(--muted);
+                line-height: 1.3;
+            }
+            .toast {
+                position: fixed;
+                bottom: 1rem;
+                right: 1rem;
+                background: #222a31;
+                color: var(--text);
+                padding: 0.6rem 0.75rem;
+                font-size: 0.65rem;
+                border: 1px solid #2f3842;
+                border-radius: var(--radius);
+                max-width: 280px;
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+                display: none;
+                z-index: 20;
+                line-height: 1.25;
+            }
+            .toast.error {
+                border-color: var(--danger);
+                color: var(--danger);
+            }
+            @media (min-width: 1250px) {
+                main {
+                    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1>iOS Network Backup</h1>
+            <div id="health-pill" class="pill">Loading…</div>
+            <div class="row" style="margin-left: auto">
+                <button
+                    id="btn-refresh-all"
+                    class="secondary"
+                    title="Refresh all panels"
+                >
+                    Refresh All
+                </button>
+            </div>
+        </header>
+
+        <main>
+            <!-- Health -->
+            <section class="panel" id="panel-health">
+                <h2>Service Health</h2>
+                <div id="health-summary" class="small muted">
+                    Gathering status…
+                </div>
+                <div class="row" style="gap: 0.4rem">
+                    <div class="small">
+                        <strong>Mode:</strong>
+                        <span id="health-mode" class="status-badge">?</span>
+                    </div>
+                    <div class="small">
+                        <strong>netmuxd:</strong>
+                        <span id="health-netmuxd" class="status-badge">?</span>
+                    </div>
+                    <div class="small">
+                        <strong>Devices:</strong>
+                        <span id="health-device-count" class="status-badge"
+                            >0</span
+                        >
+                    </div>
+                    <div class="small">
+                        <strong>Active Jobs:</strong>
+                        <span id="health-active-jobs" class="status-badge"
+                            >0</span
+                        >
+                    </div>
+                </div>
+                <div class="small muted" id="health-note"></div>
+            </section>
+
+            <!-- Devices -->
+            <section class="panel" id="panel-devices">
+                <h2>Devices</h2>
+                <div class="row">
+                    <button id="btn-refresh-devices" class="secondary">
+                        Refresh
+                    </button>
+                    <button id="btn-pair">Pair (Auto/Selected)</button>
+                    <button id="btn-unpair" class="danger">Unpair</button>
+                </div>
+                <div class="small muted" id="selected-device-label">
+                    No device selected.
+                </div>
+                <div class="scroll-box">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>UDID</th>
+                                <th>Paired</th>
+                                <th>Backup Size</th>
+                                <th>Files</th>
+                            </tr>
+                        </thead>
+                        <tbody id="devices-tbody">
+                            <tr>
+                                <td colspan="4">Loading…</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Backup Jobs -->
+            <section class="panel" id="panel-jobs">
+                <h2>Backup Jobs</h2>
+                <div class="row">
+                    <button id="btn-start-backup" disabled>Start Backup</button>
+                    <button id="btn-refresh-jobs" class="secondary">
+                        Refresh Jobs
+                    </button>
+                </div>
+                <div class="scroll-box">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Job</th>
+                                <th>Device</th>
+                                <th>Status</th>
+                                <th>Progress</th>
+                                <th>Started</th>
+                            </tr>
+                        </thead>
+                        <tbody id="jobs-tbody">
+                            <tr>
+                                <td colspan="5">No jobs yet.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Logs -->
+            <section class="panel" id="panel-logs">
+                <h2>Backup Logs</h2>
+                <div class="row">
+                    <select id="select-log-job" class="grow">
+                        <option value="">Select Job…</option>
+                    </select>
+                    <button id="btn-stream-logs" disabled>Stream</button>
+                    <button id="btn-stop-stream" class="secondary" disabled>
+                        Stop
+                    </button>
+                    <button id="btn-fetch-logs" class="secondary" disabled>
+                        Snapshot
+                    </button>
+                </div>
+                <div class="log-view" id="logs-output">
+                    Select a job to view logs.
+                </div>
+            </section>
+
+            <!-- Utilities -->
+            <section class="panel" id="panel-utils">
+                <h2>Utilities</h2>
+                <div class="row">
+                    <button id="btn-delete-backup" class="danger" disabled>
+                        Delete Backup
+                    </button>
+                    <button id="btn-force-refresh" class="secondary">
+                        Force Refresh
+                    </button>
+                </div>
+                <div class="small muted" id="util-status">Ready.</div>
+                <div class="small muted">
+                    Pair first with USB. After pairing, backups can occur over
+                    Wi‑Fi.
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            iOS Network Backup Dashboard • No authentication enabled (add before
+            production).<br />
+            Backups can take a long time; progress is heuristic. Use at your own
+            risk.
+        </footer>
+
+        <div id="toast" class="toast"></div>
+
+        <script>
+            const API_BASE = ""; // same origin
+            let devicesCache = [];
+            let jobsCache = [];
+            let selectedDevice = null;
+            let sseSource = null;
+            let toastTimer = null;
+
+            // === Helpers ===
+            const $ = (id) => document.getElementById(id);
+            function setText(id, text) {
+                const el = $(id);
+                if (el) el.textContent = text;
+            }
+            function fmtTime(epoch) {
+                if (!epoch) return "";
+                const d = new Date(epoch * 1000);
+                return d.toLocaleTimeString();
+            }
+            function humanSize(bytes) {
+                if (bytes == null || isNaN(bytes)) return "—";
+                if (bytes === 0) return "0 B";
+                const units = ["B", "KB", "MB", "GB", "TB"];
+                const i = Math.floor(Math.log(bytes) / Math.log(1024));
+                return (bytes / Math.pow(1024, i)).toFixed(1) + " " + units[i];
+            }
+            async function api(path, opts = {}) {
+                const res = await fetch(API_BASE + path, {
+                    ...opts,
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(opts.headers || {}),
+                    },
+                });
+                let data;
+                try {
+                    data = await res.json();
+                } catch {
+                    data = null;
+                }
+                if (!res.ok) {
+                    const detail =
+                        data?.detail ||
+                        JSON.stringify(data) ||
+                        "HTTP " + res.status;
+                    throw new Error(detail);
+                }
+                return data;
+            }
+            function toast(msg, isError = false) {
+                const el = $("toast");
+                el.textContent = msg;
+                el.className = "toast" + (isError ? " error" : "");
+                el.style.display = "block";
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => {
+                    el.style.display = "none";
+                }, 5000);
+                setText("util-status", msg);
+                $("util-status").style.color = isError
+                    ? "var(--danger)"
+                    : "var(--muted)";
+            }
+            function updateSelectedDeviceUI() {
+                setText(
+                    "selected-device-label",
+                    selectedDevice
+                        ? "Selected: " + selectedDevice
+                        : "No device selected.",
+                );
+                $("btn-start-backup").disabled = !selectedDevice;
+                $("btn-delete-backup").disabled = !selectedDevice;
+            }
+
+            // === Health ===
+            async function loadHealth() {
+                try {
+                    const h = await api("/health");
+                    // Pill state
+                    setHealthPill(h.netmuxd_running ? "OK" : "WARN");
+                    setText(
+                        "health-summary",
+                        "Service running. netmuxd: " +
+                            (h.netmuxd_running ? "up" : "down"),
+                    );
+                    setText("health-mode", h.app_mode);
+                    setText(
+                        "health-netmuxd",
+                        h.netmuxd_running ? "RUNNING" : "DOWN",
+                    );
+                    setText("health-device-count", h.devices.length);
+                    setText("health-active-jobs", h.jobs_active);
+                    setText(
+                        "health-note",
+                        h.netmuxd_running
+                            ? ""
+                            : "netmuxd not running; network backups may fail.",
+                    );
+                    const nm = $("health-netmuxd");
+                    nm.className =
+                        "status-badge " +
+                        (h.netmuxd_running ? "status-running" : "status-error");
+                } catch (e) {
+                    setHealthPill("ERROR");
+                    setText("health-summary", "Error: " + e.message);
+                }
+            }
+            function setHealthPill(state) {
+                const pill = $("health-pill");
+                pill.textContent = state;
+                pill.className =
+                    "pill " +
+                    (state === "OK"
+                        ? "ok"
+                        : state === "WARN"
+                          ? "warn"
+                          : state === "ERROR"
+                            ? "danger"
+                            : "");
+            }
+
+            // === Devices ===
+            async function loadDevices() {
+                try {
+                    const ds = await api("/devices");
+                    devicesCache = ds;
+                    const body = $("devices-tbody");
+                    body.innerHTML = "";
+                    if (!ds.length) {
+                        body.innerHTML =
+                            "<tr><td colspan='4'>No devices detected.</td></tr>";
+                    } else {
+                        for (const d of ds) {
+                            const tr = document.createElement("tr");
+                            tr.dataset.udid = d.udid;
+                            tr.innerHTML = `
+              <td class="nowrap">${d.udid}</td>
+              <td>${d.paired ? "<span class='status-badge status-success'>PAIRED</span>" : "<span class='status-badge'>NO</span>"}</td>
+              <td id="size-${d.udid}" class="muted">…</td>
+              <td id="files-${d.udid}" class="muted">…</td>
+            `;
+                            tr.onclick = () => selectDevice(d.udid);
+                            body.appendChild(tr);
+                            // Load backup stats silently
+                            loadBackupSummary(d.udid);
+                        }
+                    }
+                    if (
+                        selectedDevice &&
+                        !devicesCache.find((x) => x.udid === selectedDevice)
+                    ) {
+                        selectedDevice = null;
+                    }
+                    highlightSelectedDevice();
+                    updateSelectedDeviceUI();
+                } catch (e) {
+                    $("devices-tbody").innerHTML =
+                        "<tr><td colspan='4'>Error: " +
+                        e.message +
+                        "</td></tr>";
+                }
+            }
+            async function loadBackupSummary(udid) {
+                try {
+                    const summary = await api("/backups/" + udid);
+                    setText("size-" + udid, humanSize(summary.size_bytes || 0));
+                    setText("files-" + udid, summary.file_count ?? 0);
+                } catch {
+                    setText("size-" + udid, "—");
+                    setText("files-" + udid, "—");
+                }
+            }
+            function selectDevice(udid) {
+                selectedDevice = udid;
+                highlightSelectedDevice();
+                updateSelectedDeviceUI();
+            }
+            function highlightSelectedDevice() {
+                [...$("devices-tbody").querySelectorAll("tr")].forEach((tr) => {
+                    tr.style.background =
+                        tr.dataset.udid === selectedDevice ? "#2d353f" : "";
+                });
+            }
+
+            // === Pair / Unpair ===
+            async function pairDevice() {
+                try {
+                    const body = selectedDevice
+                        ? JSON.stringify({ udid: selectedDevice })
+                        : null;
+                    const res = await fetch("/pair", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body,
+                    });
+                    const data = await res.json();
+                    if (!res.ok)
+                        throw new Error(data.detail || JSON.stringify(data));
+                    toast("Paired " + data.udid);
+                    await loadDevices();
+                } catch (e) {
+                    toast("Pair failed: " + e.message, true);
+                }
+            }
+            async function unpairDevice() {
+                if (!selectedDevice) {
+                    toast("Select a device first.", true);
+                    return;
+                }
+                if (!confirm("Unpair device " + selectedDevice + "?")) return;
+                try {
+                    const data = await api("/unpair", {
+                        method: "POST",
+                        body: JSON.stringify({ udid: selectedDevice }),
+                    });
+                    toast("Unpaired " + data.udid);
+                    await loadDevices();
+                } catch (e) {
+                    toast("Unpair failed: " + e.message, true);
+                }
+            }
+
+            // === Jobs ===
+            async function startBackup() {
+                if (!selectedDevice) {
+                    toast("Select a device.", true);
+                    return;
+                }
+                try {
+                    const data = await api("/backup", {
+                        method: "POST",
+                        body: JSON.stringify({ udid: selectedDevice }),
+                    });
+                    toast(
+                        "Backup started (job " +
+                            data.job_id.slice(0, 8) +
+                            "…) ",
+                    );
+                    await loadJobs();
+                } catch (e) {
+                    toast("Start backup failed: " + e.message, true);
+                }
+            }
+            async function loadJobs() {
+                try {
+                    const jobs = await api("/backup/jobs");
+                    jobsCache = jobs;
+                    const body = $("jobs-tbody");
+                    body.innerHTML = "";
+                    if (!jobs.length) {
+                        body.innerHTML =
+                            "<tr><td colspan='5'>No jobs.</td></tr>";
+                    } else {
+                        for (const j of jobs.sort(
+                            (a, b) => b.created_at - a.created_at,
+                        )) {
+                            const progress =
+                                j.progress_hint != null
+                                    ? Math.round(j.progress_hint * 100)
+                                    : 0;
+                            const statusClass =
+                                j.status === "running"
+                                    ? "status-running"
+                                    : j.status === "success"
+                                      ? "status-success"
+                                      : j.status.startsWith("error")
+                                        ? "status-error"
+                                        : "";
+                            const tr = document.createElement("tr");
+                            tr.dataset.jobId = j.job_id;
+                            tr.innerHTML = `
+              <td class="nowrap">${j.job_id.slice(0, 8)}…</td>
+              <td class="nowrap">${j.udid}</td>
+              <td><span class="status-badge ${statusClass}">${j.status}</span></td>
+              <td style="min-width:120px;">
+                <div class="progress-wrap"><div class="progress-bar" style="width:${progress}%;"></div></div>
+                <div class="small muted" style="margin-top:.2rem;">${progress}%</div>
+              </td>
+              <td>${fmtTime(j.started_at)}</td>
+            `;
+                            tr.onclick = () => selectLogJob(j.job_id);
+                            body.appendChild(tr);
+                        }
+                    }
+                    refreshLogJobSelect();
+                } catch (e) {
+                    $("jobs-tbody").innerHTML =
+                        "<tr><td colspan='5'>Error: " +
+                        e.message +
+                        "</td></tr>";
+                }
+            }
+
+            // === Logs ===
+            function refreshLogJobSelect() {
+                const select = $("select-log-job");
+                const current = select.value;
+                select.innerHTML = "<option value=''>Select Job…</option>";
+                for (const j of jobsCache.sort(
+                    (a, b) => b.created_at - a.created_at,
+                )) {
+                    const opt = document.createElement("option");
+                    opt.value = j.job_id;
+                    opt.textContent =
+                        j.job_id.slice(0, 8) + "… (" + j.status + ")";
+                    select.appendChild(opt);
+                }
+                if (jobsCache.find((j) => j.job_id === current)) {
+                    select.value = current;
+                }
+                updateLogButtons();
+            }
+            function updateLogButtons() {
+                const val = $("select-log-job").value;
+                $("btn-stream-logs").disabled = !val;
+                $("btn-fetch-logs").disabled = !val;
+                $("btn-stop-stream").disabled = true;
+            }
+            function selectLogJob(jobId) {
+                $("select-log-job").value = jobId;
+                $("logs-output").textContent = "Selected job " + jobId + ".";
+                updateLogButtons();
+            }
+            async function fetchLogsSnapshot() {
+                const jobId = $("select-log-job").value;
+                if (!jobId) return;
+                try {
+                    const data = await api("/backup/" + jobId + "/logs");
+                    $("logs-output").textContent =
+                        data.logs.join("\n") || "(no logs)";
+                } catch (e) {
+                    $("logs-output").textContent = "Error: " + e.message;
+                }
+            }
+            function startLogStream() {
+                const jobId = $("select-log-job").value;
+                if (!jobId) return;
+                stopLogStream(true);
+                $("logs-output").textContent = "";
+                sseSource = new EventSource("/backup/" + jobId + "/stream");
+                sseSource.onmessage = (evt) => {
+                    try {
+                        const payload = JSON.parse(evt.data);
+                        appendLog(payload.line);
+                    } catch {
+                        appendLog(evt.data);
+                    }
+                };
+                sseSource.addEventListener("done", () => {
+                    appendLog("[Stream complete]");
+                    stopLogStream(true);
+                });
+                sseSource.onerror = () => {
+                    appendLog("[Stream error]");
+                    stopLogStream();
+                };
+                $("btn-stream-logs").disabled = true;
+                $("btn-stop-stream").disabled = false;
+                $("btn-fetch-logs").disabled = true;
+            }
+            function appendLog(line) {
+                const out = $("logs-output");
+                out.textContent += line + "\n";
+                out.scrollTop = out.scrollHeight;
+            }
+            function stopLogStream(keepContent = false) {
+                if (sseSource) {
+                    sseSource.close();
+                    sseSource = null;
+                }
+                $("btn-stop-stream").disabled = true;
+                const val = $("select-log-job").value;
+                $("btn-stream-logs").disabled = !val;
+                $("btn-fetch-logs").disabled = !val;
+                if (!keepContent && !$("logs-output").textContent.trim()) {
+                    $("logs-output").textContent = "Stream stopped.";
+                }
+            }
+
+            // === Delete Backup ===
+            async function deleteBackup() {
+                if (!selectedDevice) {
+                    toast("Select a device.", true);
+                    return;
+                }
+                if (
+                    !confirm(
+                        "Delete backup data for device " + selectedDevice + "?",
+                    )
+                )
+                    return;
+                try {
+                    const data = await api("/backups/" + selectedDevice, {
+                        method: "DELETE",
+                    });
+                    toast("Deleted backup for " + selectedDevice);
+                    await loadDevices();
+                } catch (e) {
+                    toast("Delete failed: " + e.message, true);
+                }
+            }
+
+            // === Event Bindings ===
+            function bindEvents() {
+                $("btn-refresh-all").onclick = () => {
+                    loadHealth();
+                    loadDevices();
+                    loadJobs();
+                };
+                $("btn-refresh-devices").onclick = loadDevices;
+                $("btn-pair").onclick = pairDevice;
+                $("btn-unpair").onclick = unpairDevice;
+                $("btn-start-backup").onclick = startBackup;
+                $("btn-refresh-jobs").onclick = loadJobs;
+                $("select-log-job").onchange = () => {
+                    updateLogButtons();
+                    fetchLogsSnapshot();
+                };
+                $("btn-stream-logs").onclick = startLogStream;
+                $("btn-stop-stream").onclick = () => stopLogStream(false);
+                $("btn-fetch-logs").onclick = fetchLogsSnapshot;
+                $("btn-force-refresh").onclick = () => {
+                    loadHealth();
+                    loadDevices();
+                    loadJobs();
+                };
+                $("btn-delete-backup").onclick = deleteBackup;
+            }
+
+            // === Auto Refresh Cycle ===
+            function startAutoRefresh() {
+                setInterval(() => {
+                    loadHealth();
+                    loadDevices();
+                    loadJobs();
+                }, 30000); // 30s
+            }
+
+            // === Initialize ===
+            (function init() {
+                bindEvents();
+                loadHealth();
+                loadDevices();
+                loadJobs();
+                startAutoRefresh();
+            })();
+        </script>
+    </body>
+</html>

@@ -5,16 +5,7 @@ version: "3.9"
 
 services:
   ios-backup:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        # Pin the netmuxd version (tag must exist in upstream repo jkcoxson/netmuxd)
-        NETMUXD_VERSION: v0.3.0
-        # BASE_IMAGE can be changed (e.g. python:3.12-slim, debian:stable-slim, ubuntu:22.04)
-        BASE_IMAGE: python:3.12-slim
-        LIBIMOBILEDEVICE_PKG: libimobiledevice-1.0-6
-    image: ios-backup:latest
+    image: ghcr.io/joshuaauger/ios-network-backup:latest
     container_name: ios-backup
     restart: unless-stopped
 

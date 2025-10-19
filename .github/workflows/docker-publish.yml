@@ -2,20 +2,20 @@ name: Publish Multi-Arch Docker Image
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     tags:
-      - 'v*'            # Publish when version tags pushed (e.g. v0.1.0)
+      - "v*" # Publish when version tags pushed (e.g. v0.1.0)
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (override). Leave blank to use tag or commit SHA.'
+        description: "Version (override). Leave blank to use tag or commit SHA."
         required: false
         type: string
 
 permissions:
   contents: read
   packages: write
-  id-token: write    # for provenance / attestations
+  id-token: write # for provenance / attestations
 
 concurrency:
   group: docker-publish-${{ github.ref }}
@@ -23,7 +23,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ios-network-backup              # Customize if you want a different image name
+  IMAGE_NAME: ios-network-backup # Customize if you want a different image name
   DEFAULT_NETMUXD_VERSION: v0.3.0
   DOCKERFILE: Dockerfile
   CONTEXT: .
@@ -167,7 +167,7 @@ jobs:
           echo "Pulling $IMAGE"
           docker pull "$IMAGE" || exit 0
       - name: Trivy vulnerability scan (informational)
-        uses: aquasecurity/trivy-action@v0.19.0
+        uses: aquasecurity/trivy-action@v0.33.1
         continue-on-error: true
         with:
           image-ref: ghcr.io/${{ github.repository_owner }}/ios-network-backup:latest

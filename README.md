@@ -196,6 +196,104 @@ Rebuild with new tag:
 
 If release asset missing for your architecture, source build fallback is automatic (Rust toolchain installed in builder stage).
 
+## Publishing & Pulling from GHCR (GitHub Container Registry)
+
+The repository includes a GitHub Actions workflow (`.github/workflows/docker-publish.yml`) that will build and push multi-architecture images (amd64, arm64) to GHCR when you push to `main` or create a version tag (e.g. `v0.1.0`).
+
+### 1. Enable GHCR for Your Account/Org
+Log in once locally:
+```bash
+echo $GITHUB_TOKEN | docker login ghcr.io -u <your_github_username> --password-stdin
+```
+(or create a classic PAT with `read:packages` + `write:packages` scopes if needed).
+
+### 2. Set Repository Visibility
+If the repo is private and you want the image public, make the repository public OR adjust package visibility in GitHub’s “Packages” settings.
+
+### 3. Tag a Release
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+The workflow will produce:
+- `ghcr.io/<owner>/ios-network-backup:v0.1.0`
+- `ghcr.io/<owner>/ios-network-backup:latest` (if on main or tagged)
+- `ghcr.io/<owner>/ios-network-backup:sha-<short_sha>`
+
+### 4. Pull the Image
+To run without building locally:
+```bash
+docker pull ghcr.io/<owner>/ios-network-backup:latest
+docker run -d --name ios-backup \
+  -p 8080:8080 \
+  -v ios_backups:/data/backups \
+  -v ios_lockdown:/data/lockdown \
+  -v ios_config:/data/config \
+  --device /dev/bus/usb \
+  ghcr.io/<owner>/ios-network-backup:latest
+```
+
+### 5. Pin to a Specific Version
+```bash
+docker pull ghcr.io/<owner>/ios-network-backup:v0.1.0
+docker run -d --name ios-backup ... ghcr.io/<owner>/ios-network-backup:v0.1.0
+```
+
+### 6. Overriding netmuxd Version in Workflow
+Push a tag like `v0.3.1` and the workflow will attempt to use that as `NETMUXD_VERSION`. If you want a different netmuxd tag than the repo version, manually dispatch the workflow with an input version:
+- GitHub UI → Actions → “Publish Multi-Arch Docker Image” → “Run workflow” → set version input (e.g. `v0.3.0`).
+
+### 7. Local Build vs GHCR
+Local:
+```bash
+docker build -t ios-backup:dev .
+```
+Remote (pull):
+```bash
+docker run ghcr.io/<owner>/ios-network-backup:latest
+```
+
+### 8. Cleaning Up Old Images
+Use GitHub “Packages” UI or CLI:
+```bash
+gh api \
+  -X DELETE \
+  /user/packages/container/ios-network-backup/versions/<version_id>
+```
+
+### 9. SBOM & Provenance
+The workflow enables SBOM and provenance (`provenance: true`, `sbom: true`). Consumers can inspect:
+```bash
+docker buildx imagetools inspect ghcr.io/<owner>/ios-network-backup:latest
+```
+
+Replace `<owner>` with your GitHub user or org name (lowercase).
+
+### CI Authentication (GITHUB_TOKEN vs PAT)
+
+For GitHub Actions builds in this repository you do **not** need a Personal Access Token (PAT). The workflow uses the built-in `GITHUB_TOKEN` with `packages: write` permission to authenticate to GHCR automatically. Use a PAT or GitHub App token only when:
+- You are pushing images locally (outside Actions) to a private package.
+- You need to pull a private image from another system that is not executing inside this repository’s Actions.
+
+Public images (package set to public) can be pulled with no authentication:
+```
+docker pull ghcr.io/<owner>/ios-network-backup:latest
+```
+
+If you do need a PAT for local pushes:
+1. Create a fine‑grained PAT with Package permissions (Read & Write) for this repo.
+2. Login locally:
+   ```
+   echo $PAT | docker login ghcr.io -u <your_username> --password-stdin
+   ```
+3. Push:
+   ```
+   docker push ghcr.io/<owner>/ios-network-backup:<tag>
+   ```
+
+Deploy keys (SSH keys tied to a single repo) cannot be used for GHCR because they only grant Git access, not registry/package API access.
+
+
 ## License
 
 This project aggregates third-party binaries (`netmuxd`, `libimobiledevice`). Review their upstream licenses separately. All original code in this repository is released under **The Unlicense** (public domain). See `LICENSE` for details.

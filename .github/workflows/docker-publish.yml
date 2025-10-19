@@ -1,0 +1,177 @@
+name: Publish Multi-Arch Docker Image
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'            # Publish when version tags pushed (e.g. v0.1.0)
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (override). Leave blank to use tag or commit SHA.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write    # for provenance / attestations
+
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ios-network-backup              # Customize if you want a different image name
+  DEFAULT_NETMUXD_VERSION: v0.3.0
+  DOCKERFILE: Dockerfile
+  CONTEXT: .
+  PLATFORMS: linux/amd64,linux/arm64
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Derive Version
+        id: version
+        run: |
+          # Priority:
+          # 1. Git tag (strip leading 'v' for semver if needed)
+          # 2. workflow_dispatch input
+          # 3. Short SHA
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            RAW_TAG="${GITHUB_REF_NAME}"
+            VERSION="${RAW_TAG}"
+            echo "Detected tag: $RAW_TAG"
+          elif [[ -n "${{ github.event.inputs.version }}" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+            echo "Using workflow_dispatch input version: $VERSION"
+          else
+            VERSION="$(git rev-parse --short HEAD)"
+            echo "Using short SHA as version: $VERSION"
+          fi
+
+          # Normalize: ensure it starts with 'v' if semver-like
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            VERSION="v${VERSION}"
+          fi
+
+          echo "resolved_version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Compute Tags
+        id: tags
+        run: |
+          VERSION="${{ steps.version.outputs.resolved_version }}"
+          OWNER_LOWER="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          IMAGE="${REGISTRY}/${OWNER_LOWER}/${IMAGE_NAME}"
+
+          TAGS="$IMAGE:${VERSION}"
+
+          # Add 'latest' if push to main or tag
+          if [[ "${GITHUB_REF}" == "refs/heads/main" || "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            TAGS="$TAGS,$IMAGE:latest"
+          fi
+
+          # Always add a commit specific tag
+            SHORT_SHA="$(git rev-parse --short HEAD)"
+            TAGS="$TAGS,$IMAGE:sha-${SHORT_SHA}"
+
+          echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Extract metadata (labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.tags.outputs.image }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.resolved_version }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha
+          labels: |
+            org.opencontainers.image.title=iOS Network Backup
+            org.opencontainers.image.description=Containerized iOS network backup service (netmuxd + libimobiledevice + FastAPI UI)
+            org.opencontainers.image.source=${{ github.repositoryUrl }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.resolved_version }}
+
+      - name: Set up QEMU (multi-arch)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine netmuxd version build-arg
+        id: netmuxd
+        run: |
+          # Allow overriding NETMUXD_VERSION if tag looks like a netmuxd tag; else fallback.
+          VERSION="${{ steps.version.outputs.resolved_version }}"
+          # If the tag matches pattern vX.Y.Z we can pass through; else use default.
+          if [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            NETMUXD_VERSION="$VERSION"
+          else
+            NETMUXD_VERSION="${DEFAULT_NETMUXD_VERSION}"
+          fi
+          echo "Using NETMUXD_VERSION=$NETMUXD_VERSION"
+          echo "netmuxd_version=$NETMUXD_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build and Push (multi-arch)
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.CONTEXT }}
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          platforms: ${{ env.PLATFORMS }}
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            NETMUXD_VERSION=${{ steps.netmuxd.outputs.netmuxd_version }}
+            LIBIMOBILEDEVICE_PKG=libimobiledevice-1.0-6
+          cache-from: type=registry,ref=${{ steps.tags.outputs.image }}:buildcache
+          cache-to: type=registry,ref=${{ steps.tags.outputs.image }}:buildcache,mode=max
+          provenance: true
+          sbom: true
+
+      - name: Summary
+        run: |
+          echo "Published tags:"
+          echo "${{ steps.tags.outputs.tags }}" | tr ',' '\n'
+          echo ""
+          echo "netmuxd build arg: ${{ steps.netmuxd.outputs.netmuxd_version }}"
+          echo "Version label: ${{ steps.version.outputs.resolved_version }}"
+
+  # Optional job: scan image (kept separate so publish doesn't fail on scan issues)
+  scan:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: Pull published image
+        run: |
+          OWNER_LOWER="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          IMAGE="${{ env.REGISTRY }}/${OWNER_LOWER}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.resolved_version || 'latest' }}"
+          echo "Pulling $IMAGE"
+          docker pull "$IMAGE" || exit 0
+      - name: Trivy vulnerability scan (informational)
+        uses: aquasecurity/trivy-action@v0.19.0
+        continue-on-error: true
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/ios-network-backup:latest
+          format: table
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
